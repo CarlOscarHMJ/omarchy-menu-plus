@@ -1,5 +1,7 @@
 # Omarchy Menu Plus
 
+<video src="https://github.com/CarlOscarHMJ/omarchy-menu-plus/raw/master/demo.mp4" controls muted></video>
+
 A drop-in replacement for [Omarchy](https://github.com/basecamp/omarchy)'s
 built-in `Super + Space` menu (`omarchy.menu`) that adds three search modes
 lost when Omarchy 4.0 ("quattro") replaced `walker`/`elephant`:
