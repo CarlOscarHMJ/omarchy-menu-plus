@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.carloscarhmj.omarchy-menu-plus",
+  "name": "Omarchy Menu Plus",
+  "version": "1.0.0",
+  "author": "CarlOscarHMJ",
+  "description": "The stock Omarchy menu plus a live \".query\" filesystem search and a \"=expr\" calculator — brings back the walker-style search modes that were lost when Omarchy 4.0 replaced walker/elephant.",
+  "kinds": [
+    "menu",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "menu": "Menu.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Omarchy Menu Plus",
+    "description": "Launches the Omarchy menu, with added file search and calculator modes",
+    "category": "Compositor",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.menu"
+  }
+}
