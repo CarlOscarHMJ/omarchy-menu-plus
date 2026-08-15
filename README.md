@@ -1,8 +1,6 @@
 # Omarchy Menu Plus
 
-![Omarchy Menu Plus file search demo](demo-preview.gif)
-
-[Full demo video with audio](demo.mp4) (46s, covers file search and the calculator)
+![Omarchy Menu Plus demo](demo-preview.gif)
 
 A drop-in replacement for [Omarchy](https://github.com/basecamp/omarchy)'s
 built-in `Super + Space` menu (`omarchy.menu`) that adds three search modes
