@@ -1,7 +1,7 @@
 # Omarchy Menu Plus
 
 A drop-in replacement for [Omarchy](https://github.com/basecamp/omarchy)'s
-built-in `Super + Space` menu (`omarchy.menu`) that adds two search modes
+built-in `Super + Space` menu (`omarchy.menu`) that adds three search modes
 lost when Omarchy 4.0 ("quattro") replaced `walker`/`elephant`:
 
 - **`.query`** — live, whole-filesystem file search (via `locate`), opening
@@ -9,9 +9,12 @@ lost when Omarchy 4.0 ("quattro") replaced `walker`/`elephant`:
 - **`=expr`** — an inline calculator (`+ - * / % ^`, plus `sqrt`, `pow`,
   `sin`/`cos`/`tan`, `log`, `round`, `pi`, `e`, and more), copying the
   result to your clipboard on Enter.
+- **`!amount currency to currency`** — a live currency converter (e.g.
+  `!420 usd to dkk`, `!$420 to dkk`, `!420 to £`), copying the result to
+  your clipboard on Enter.
 
 Everything else about the menu — apps, settings, power, fonts, etc. — is
-completely unchanged; this is the stock `omarchy.menu` source with the two
+completely unchanged; this is the stock `omarchy.menu` source with the three
 modes layered on top.
 
 ## Install
@@ -44,9 +47,17 @@ Removing (or disabling) it automatically restores the stock `omarchy.menu`.
 | `=4*23` | `92` |
 | `=sqrt(16)` | `4` |
 | `=pow(2,10)+round(pi)` | `1027` |
+| `!420 usd to dkk` | `2714.46 DKK` |
+| `!$420 to dkk` | `2714.46 DKK` (symbols work on either side, and as the target too) |
+| `!100 EUR to £` | `85.45 GBP` |
+
+Currency codes and symbols are case-insensitive and recognized in any
+position (`usd 420 to dkk` works too). Supported symbols: `$` (USD), `£`
+(GBP), `€` (EUR), `¥` (JPY), `₹` (INR), `₩` (KRW) — anything else, use the
+3-letter ISO code.
 
 File search results open with the file's default app on Enter. Calculator
-results copy to your clipboard on Enter.
+and currency results copy to your clipboard on Enter.
 
 ## Dependencies
 
@@ -58,8 +69,12 @@ results copy to your clipboard on Enter.
   ```
   Without it, `.query` search will just return no results (nothing breaks,
   it silently finds nothing).
-- `gtk-launch`, `xdg-terminal-exec`, `xdg-mime`, `wl-copy` — all standard on
-  an Omarchy install already, no extra setup needed.
+- `gtk-launch`, `xdg-terminal-exec`, `xdg-mime`, `wl-copy`, `curl` — all
+  standard on an Omarchy install already, no extra setup needed.
+- **Network access** — currency conversion calls the free
+  [Frankfurter API](https://frankfurter.dev/) (ECB reference rates, no API
+  key required). Offline, or if the request fails, `!query` just returns no
+  result.
 
 ## Why this exists / how file-open works
 

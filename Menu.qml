@@ -66,6 +66,8 @@ Item {
   property string filterText: ""
   property var fileSearchRows: []
   property var fileSearchPendingQuery: null
+  property var currencyPendingQuery: null
+  property var currencyResult: null
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -334,6 +336,70 @@ Item {
     } catch (e) {
       return null
     }
+  }
+
+  // "!" prefix: currency conversion (e.g. "!420 usd to dkk", "!$420 to dkk",
+  // "!420 to £"). Case-insensitive; recognizes a few common currency symbols
+  // in addition to 3-letter ISO codes, in either position.
+  function isCurrencyQuery(text) {
+    return text.length > 1 && text.charAt(0) === "!"
+  }
+
+  readonly property var currencySymbols: ({
+    "$": "USD", "£": "GBP", "€": "EUR", "¥": "JPY", "₹": "INR", "₩": "KRW"
+  })
+
+  // Swaps each known symbol for its ISO code with padding spaces, so
+  // "$420 to dkk" and "420$ to dkk" both normalize to word-separated form
+  // regardless of which side of the amount the symbol was on.
+  function normalizeCurrencyText(text) {
+    var result = text
+    for (var symbol in root.currencySymbols) {
+      if (result.indexOf(symbol) === -1) continue
+      result = result.split(symbol).join(" " + root.currencySymbols[symbol] + " ")
+    }
+    return result.replace(/\s+/g, " ").trim()
+  }
+
+  // Accepts the currency code either before or after the amount (covers both
+  // "usd 420 to dkk" and "420 usd to dkk", which the symbol normalization
+  // above can produce depending on where the symbol was typed).
+  function parseCurrencyQuery(text) {
+    var normalized = root.normalizeCurrencyText(text)
+    var match = normalized.match(/^(?:([a-zA-Z]{3})\s+(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s+([a-zA-Z]{3}))\s+to\s+([a-zA-Z]{3})$/i)
+    if (!match) return null
+    var fromCode = (match[1] || match[4] || "").toUpperCase()
+    var amountStr = (match[2] || match[3] || "").replace(",", ".")
+    var toCode = match[5].toUpperCase()
+    var amount = parseFloat(amountStr)
+    if (!fromCode || !toCode || !isFinite(amount)) return null
+    return { amount: amount, from: fromCode, to: toCode }
+  }
+
+  function startCurrencyConversion(parsed) {
+    if (currencyProc.running) {
+      root.currencyPendingQuery = parsed
+      return
+    }
+    root.currencyPendingQuery = null
+    var url = "https://api.frankfurter.app/latest?amount=" + encodeURIComponent(parsed.amount) + "&from=" + parsed.from + "&to=" + parsed.to
+    currencyProc.parsedQuery = parsed
+    currencyProc.command = ["bash", "-lc", "curl -sL --max-time 5 " + Util.shellQuote(url)]
+    currencyProc.running = true
+  }
+
+  function applyCurrencyResult(raw, parsed) {
+    root.currencyResult = null
+    try {
+      var data = JSON.parse(raw)
+      var value = data && data.rates ? data.rates[parsed.to] : undefined
+      if (typeof value === "number" && isFinite(value)) {
+        root.currencyResult = { amount: parsed.amount, from: parsed.from, to: parsed.to, converted: value }
+      }
+    } catch (e) {
+      root.currencyResult = null
+    }
+    if (root.opened) root.rebuildDisplay()
   }
 
   function startFileSearch(term) {
@@ -682,6 +748,40 @@ Item {
       return
     }
 
+    if (!root.dmenuActive && root.isCurrencyQuery(trimmedForMode)) {
+      var parsedCurrency = root.parseCurrencyQuery(trimmedForMode.slice(1))
+      var cachedResult = root.currencyResult
+      if (parsedCurrency && cachedResult
+          && cachedResult.from === parsedCurrency.from
+          && cachedResult.to === parsedCurrency.to
+          && cachedResult.amount === parsedCurrency.amount) {
+        var convertedText = cachedResult.converted.toFixed(2) + " " + cachedResult.to
+        displayModel.append({
+          itemId: "currency.result",
+          kind: "action",
+          icon: "$",
+          iconFont: "",
+          appIcon: "",
+          appId: "",
+          label: convertedText,
+          target: "",
+          detail: parsedCurrency.amount + " " + parsedCurrency.from + " → " + parsedCurrency.to,
+          path: "",
+          childCount: 0,
+          action: "printf '%s' " + Util.shellQuote(convertedText) + " | wl-copy",
+          provider: "",
+          score: 0,
+          section: ""
+        })
+      }
+      layoutSerial += 1
+      if (displayModel.count === 0) selectedIndex = 0
+      else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
+      else if (selectedIndex < 0) selectedIndex = 0
+      Qt.callLater(function() { if (displayModel.count > 0) root.revealCursor() })
+      return
+    }
+
     if (!root.dmenuActive && root.isCalcQuery(trimmedForMode)) {
       var calcResult = root.evaluateCalc(trimmedForMode.slice(1))
       if (calcResult !== null) {
@@ -827,6 +927,9 @@ Item {
     var trimmedFilter = root.filterText.trim()
     if (!root.dmenuActive && root.isFileSearchQuery(trimmedFilter)) {
       root.startFileSearch(trimmedFilter.slice(1))
+    } else if (!root.dmenuActive && root.isCurrencyQuery(trimmedFilter)) {
+      var parsedForFetch = root.parseCurrencyQuery(trimmedFilter.slice(1))
+      if (parsedForFetch) root.startCurrencyConversion(parsedForFetch)
     } else if (!root.dmenuActive && root.isCalcQuery(trimmedFilter)) {
       // Calculator is evaluated synchronously in rebuildDisplay() — no
       // provider/process kickoff needed here.
@@ -1068,6 +1171,22 @@ Item {
         var nextTerm = root.fileSearchPendingQuery
         root.fileSearchPendingQuery = null
         root.startFileSearch(nextTerm)
+      }
+    }
+  }
+
+  Process {
+    id: currencyProc
+    property var parsedQuery: null
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.applyCurrencyResult(text, currencyProc.parsedQuery)
+        if (root.currencyPendingQuery !== null) {
+          var nextQuery = root.currencyPendingQuery
+          root.currencyPendingQuery = null
+          root.startCurrencyConversion(nextQuery)
+        }
       }
     }
   }
